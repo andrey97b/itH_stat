@@ -1,0 +1,84 @@
+﻿# Шаблонная конфигурация Docker Compose.
+#
+# docker-compose-install.sh создаёт локальный файл:
+#
+# docker-compose.override.yml
+#
+# В override-файле хранятся индивидуальные значения конкретного VPS:
+#
+# - ServerID;
+# - API endpoint;
+# - путь к папке Xray-логов.
+#
+# Override-файл игнорируется Git.
+
+services:
+  xray-logreader:
+    # docker-compose-install.sh создаёт или заменяет этот локальный тег
+    # после скачивания последнего Gitea Release.
+    image: xray-logreader:current
+
+    # Постоянное понятное имя Docker-контейнера.
+    container_name: xray-logreader
+
+    # Запуск после перезагрузки VPS/Docker
+    # и перезапуск при аварийном завершении приложения.
+    restart: unless-stopped
+
+    environment:
+      # Используется appsettings.json внутри production-контейнера.
+      DOTNET_ENVIRONMENT: Production
+
+      # ==========================================================
+      # Logreader
+      # ==========================================================
+
+      # Демонстрационные значения.
+      # Реальные параметры VPS переопределяются в docker-compose.override.yml.
+      Logreader__ServerID: "1"
+      Logreader__RequestUrl: "https://example.com/api/logreader/connection"
+
+      # Installer монтирует папку Xray-логов хоста в контейнер по пути:
+      #
+      # /var/log/xray
+      #
+      # Приложение читает этот файл внутри контейнера.
+      Logreader__LogPath: "/var/log/xray/access.log"
+
+      # Проверять новые строки access.log два раза в секунду.
+      Logreader__IntervalMilliseconds: "500"
+
+      # Максимальное ожидание HTTP-ответа API: 5 секунд.
+      Logreader__RequestTimeoutMilliseconds: "5000"
+
+      # Один ClientIdent отправляется в API не чаще раза за 24 часа.
+      Logreader__RequestCooldownMilliseconds: "86400000"
+
+      # Сохранять snapshot состояния Reader в памяти раз в минуту.
+      Logreader__StateSaveIntervalMilliseconds: "60000"
+
+      # ==========================================================
+      # FileLogging
+      # ==========================================================
+
+      # Файловое логирование Information и Warning.
+      FileLogging__InfoEnabled: "false"
+
+      # Файловое логирование Error и Critical.
+      FileLogging__ErrorEnabled: "true"
+
+      # Пути внутри Linux-контейнера в нижнем регистре.
+      FileLogging__InfoLogPath: "/app/logs/info/log-.txt"
+      FileLogging__ErrorLogPath: "/app/logs/error/log-.txt"
+
+      # Хранить максимум 30 ежедневных файлов каждого типа.
+      FileLogging__RetainedFileCountLimit: "30"
+
+    volumes:
+      # Постоянный JSON state Reader:
+      # позиция, inode, последняя строка и cooldown клиентов.
+      - ./data:/app/data
+
+      # Постоянные файловые логи приложения.
+      - ./logs/info:/app/logs/info
+      - ./logs/error:/app/logs/error
